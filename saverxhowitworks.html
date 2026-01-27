@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaverX HVAC Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    body {
+      box-sizing: border-box;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.6)); }
+      50% { filter: drop-shadow(0 0 20px rgba(34, 197, 94, 0.9)); }
+    }
+    
+    @keyframes data-flow {
+      0% { stroke-dashoffset: 20; }
+      100% { stroke-dashoffset: 0; }
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    
+    @keyframes scan-line {
+      0% { transform: translateY(-100%); opacity: 0; }
+      50% { opacity: 1; }
+      100% { transform: translateY(100%); opacity: 0; }
+    }
+    
+    .pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    
+    .data-flow {
+      stroke-dasharray: 10 5;
+      animation: data-flow 1s linear infinite;
+    }
+    
+    .float {
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    .scan-line {
+      animation: scan-line 2s ease-in-out infinite;
+    }
+    
+    .stage-indicator {
+      transition: all 0.5s ease;
+    }
+    
+    .stage-indicator.active {
+      transform: scale(1.1);
+    }
+    
+    .metric-card {
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+      touch-action: manipulation;
+    }
+    
+    .metric-card:hover {
+      transform: translateY(-2px);
+    }
+    
+    @media (hover: none) {
+      .metric-card:active {
+        transform: scale(0.98);
+      }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full">
+  <div id="app-wrapper" class="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-auto">
+   <div class="min-h-full p-4 sm:p-6 md:p-8 lg:p-10"><!-- Main Visualization -->
+    <div class="max-w-6xl mx-auto"><!-- Stage Indicators -->
+     <div class="flex justify-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+      <div id="stage-1-dot" class="stage-indicator w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500"></div>
+      <div id="stage-2-dot" class="stage-indicator w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-slate-600"></div>
+      <div id="stage-3-dot" class="stage-indicator w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-slate-600"></div>
+      <div id="stage-4-dot" class="stage-indicator w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-slate-600"></div>
+     </div><!-- Stage Title -->
+     <div class="text-center mb-4 sm:mb-6"><span id="stage-label" class="inline-block px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-emerald-500/20 text-emerald-400 text-xs sm:text-sm font-semibold border border-emerald-500/30"> Stage 1: Thermal Load Assessment </span>
+     </div><!-- Building Visualization -->
+     <div class="relative bg-slate-800/50 rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 border border-slate-700/50 mb-4 sm:mb-6">
+      <svg viewbox="0 0 800 400" class="w-full h-auto" preserveaspectratio="xMidYMid meet"><!-- Building Structure --> <defs>
+        <lineargradient id="buildingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+         <stop offset="0%" style="stop-color:#334155" />
+         <stop offset="100%" style="stop-color:#1e293b" />
+        </lineargradient>
+        <lineargradient id="glassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+         <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:0.3" />
+         <stop offset="100%" style="stop-color:#0ea5e9;stop-opacity:0.1" />
+        </lineargradient>
+        <filter id="glow">
+         <fegaussianblur stddeviation="3" result="coloredBlur" />
+         <femerge>
+          <femergenode in="coloredBlur" />
+          <femergenode in="SourceGraphic" />
+         </femerge>
+        </filter>
+       </defs> <!-- Main Building --> <rect x="200" y="80" width="250" height="280" rx="8" fill="url(#buildingGrad)" stroke="#475569" stroke-width="2" /> <!-- Windows Grid --> <g id="windows"><!-- Floor 1 -->
+        <rect x="220" y="100" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="1" />
+        <rect x="275" y="100" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="1" />
+        <rect x="330" y="100" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="1" />
+        <rect x="385" y="100" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="1" /> <!-- Floor 2 -->
+        <rect x="220" y="165" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="2" />
+        <rect x="275" y="165" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="2" />
+        <rect x="330" y="165" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="2" />
+        <rect x="385" y="165" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="2" /> <!-- Floor 3 -->
+        <rect x="220" y="230" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="3" />
+        <rect x="275" y="230" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="3" />
+        <rect x="330" y="230" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="3" />
+        <rect x="385" y="230" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="3" /> <!-- Floor 4 -->
+        <rect x="220" y="295" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="4" />
+        <rect x="275" y="295" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="4" />
+        <rect x="330" y="295" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="4" />
+        <rect x="385" y="295" width="40" height="50" rx="4" fill="url(#glassGrad)" class="window" data-floor="4" />
+       </g> <!-- Thermal Scan Overlay --> <g id="thermal-overlay" opacity="0">
+        <rect x="200" y="80" width="250" height="70" fill="#ef4444" opacity="0.3" />
+        <rect x="200" y="150" width="250" height="70" fill="#f97316" opacity="0.3" />
+        <rect x="200" y="220" width="250" height="70" fill="#eab308" opacity="0.3" />
+        <rect x="200" y="290" width="250" height="70" fill="#22c55e" opacity="0.3" />
+       </g> <!-- HVAC Unit --> <g id="hvac-unit" transform="translate(520, 150)">
+        <rect x="0" y="0" width="120" height="100" rx="12" fill="#1e293b" stroke="#10b981" stroke-width="2" />
+        <text x="60" y="30" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">
+         HVAC Control Unit
+        </text>
+        <text x="60" y="50" text-anchor="middle" fill="#94a3b8" font-size="9">
+         Chillers, Cooling Towers
+        </text>
+        <text x="60" y="65" text-anchor="middle" fill="#94a3b8" font-size="9">
+         and AHUs
+        </text>
+       </g> <!-- SaverX Platform --> <g id="saverx-platform" transform="translate(520, 280)" class="float">
+        <rect x="0" y="0" width="120" height="80" rx="12" fill="url(#buildingGrad)" stroke="#10b981" stroke-width="2" filter="url(#glow)" />
+        <text x="60" y="25" text-anchor="middle" fill="#10b981" font-size="14" font-weight="700">
+         SaverX
+        </text>
+        <text x="60" y="42" text-anchor="middle" fill="#94a3b8" font-size="10">
+         Platform
+        </text> <!-- Processing Indicator -->
+        <g id="processing-dots" transform="translate(35, 55)">
+         <circle cx="10" cy="0" r="4" fill="#10b981" opacity="0.3" />
+         <circle cx="30" cy="0" r="4" fill="#10b981" opacity="0.3" />
+         <circle cx="50" cy="0" r="4" fill="#10b981" opacity="0.3" />
+        </g>
+       </g> <!-- SaverX Algorithm --> <g id="saverx-algorithm" transform="translate(680, 200)">
+        <rect x="0" y="0" width="100" height="70" rx="12" fill="url(#buildingGrad)" stroke="#10b981" stroke-width="2" filter="url(#glow)" />
+        <text x="50" y="28" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700">
+         SaverX
+        </text>
+        <text x="50" y="45" text-anchor="middle" fill="#94a3b8" font-size="9">
+         Algorithm
+        </text>
+       </g> <!-- Data Flow Lines --> <g id="data-flows"><!-- Building to SaverX Platform (Green) -->
+        <path id="flow-building-platform" d="M450 220 Q485 220 485 280 Q485 320 520 320" fill="none" stroke="#10b981" stroke-width="2" class="data-flow" opacity="0" /> <!-- SaverX Platform to Algorithm (Internal) -->
+        <path id="flow-platform-algorithm" d="M640 320 L680 320 L680 270" fill="none" stroke="#10b981" stroke-width="2" class="data-flow" opacity="0" /> <!-- SaverX Algorithm to HVAC (Yellow) -->
+        <path id="flow-algorithm-hvac" d="M680 235 L680 200 L640 200" fill="none" stroke="#f59e0b" stroke-width="2" class="data-flow" opacity="0" /> <!-- HVAC to Building (Blue) -->
+        <path id="flow-hvac-building" d="M520 200 L450 200" fill="none" stroke="#3b82f6" stroke-width="2" class="data-flow" opacity="0" />
+       </g> <!-- Data Packets --> <g id="data-packets">
+        <circle id="packet-1" cx="450" cy="220" r="6" fill="#10b981" opacity="0" />
+        <circle id="packet-2" cx="580" cy="280" r="6" fill="#f59e0b" opacity="0" />
+        <circle id="packet-3" cx="520" cy="200" r="6" fill="#3b82f6" opacity="0" />
+       </g> <!-- Sensor Icons --> <g id="sensors" opacity="0">
+        <circle cx="240" cy="125" r="8" fill="#f59e0b" filter="url(#glow)" />
+        <circle cx="350" cy="190" r="8" fill="#f59e0b" filter="url(#glow)" />
+        <circle cx="295" cy="255" r="8" fill="#f59e0b" filter="url(#glow)" />
+        <circle cx="405" cy="320" r="8" fill="#f59e0b" filter="url(#glow)" />
+       </g> <!-- Labels --> <text x="325" y="55" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="500">
+        Office Building
+       </text> <text x="325" y="385" text-anchor="middle" fill="#64748b" font-size="11">
+        Centralized Heating &amp; Cooling System
+       </text>
+      </svg>
+     </div><!-- Metrics Dashboard -->
+     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="metric-card bg-slate-800/70 rounded-2xl p-4 border border-slate-700/50">
+       <div class="flex items-center gap-2 mb-2">
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+         <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+         </svg>
+        </div><span class="text-slate-400 text-xs">Energy Saved</span>
+       </div>
+       <div id="energy-saved" class="text-2xl font-bold text-white">
+        0%
+       </div>
+      </div>
+      <div class="metric-card bg-slate-800/70 rounded-2xl p-4 border border-slate-700/50">
+       <div class="flex items-center gap-2 mb-2">
+        <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+         <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+         </svg>
+        </div><span class="text-slate-400 text-xs">Comfort Score</span>
+       </div>
+       <div id="comfort-score" class="text-2xl font-bold text-white">
+        65%
+       </div>
+      </div>
+      <div class="metric-card bg-slate-800/70 rounded-2xl p-4 border border-slate-700/50">
+       <div class="flex items-center gap-2 mb-2">
+        <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+         <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+         </svg>
+        </div><span class="text-slate-400 text-xs">Updates/Hour</span>
+       </div>
+       <div id="updates-hour" class="text-2xl font-bold text-white">
+        4
+       </div>
+      </div>
+      <div class="metric-card bg-slate-800/70 rounded-2xl p-4 border border-slate-700/50">
+       <div class="flex items-center gap-2 mb-2">
+        <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+         <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+         </svg>
+        </div><span class="text-slate-400 text-xs">Current Room Temperature Setpoint</span>
+       </div>
+       <div id="current-setpoint" class="text-2xl font-bold text-white">
+        22.0��C
+       </div>
+      </div>
+     </div><!-- Stage Description -->
+     <div class="bg-slate-800/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-slate-700/50">
+      <p id="stage-description" class="text-slate-300 text-center leading-relaxed text-sm sm:text-base"><span class="text-emerald-400 font-semibold">Analyzing thermal conditions...</span> SaverX continuously monitors temperature sensors throughout the building to assess real-time thermal load and occupancy patterns.</p>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      background_color: '#0f172a',
+      surface_color: '#1e293b',
+      text_color: '#f8fafc',
+      primary_action: '#10b981',
+      secondary_action: '#f59e0b'
+    };
+
+    let currentStage = 0;
+    let animationInterval;
+    
+    const stages = [
+      {
+        label: 'Stage 1: Thermal Load Assessment',
+        description: '<span class="text-emerald-400 font-semibold">Analyzing thermal conditions...</span> SaverX continuously monitors temperature sensors throughout the building to assess real-time thermal load and occupancy patterns.',
+        action: showThermalScan
+      },
+      {
+        label: 'Stage 2: Algorithm Processing',
+        description: '<span class="text-emerald-400 font-semibold">Computing optimal setpoints...</span> SaverX\'s algorithm processes sensor data to calculate the most energy-efficient temperature settings while maintaining comfort.',
+        action: showAlgorithmProcessing
+      },
+      {
+        label: 'Stage 3: HMI Communication',
+        description: '<span class="text-emerald-400 font-semibold">Updating HVAC system...</span> SaverX communicates with the HVAC\'s Human-Machine Interface to input new optimized setpoints automatically.',
+        action: showHMICommunication
+      },
+      {
+        label: 'Stage 4: Optimization Complete',
+        description: '<span class="text-emerald-400 font-semibold">Savings achieved!</span> The building now operates at optimal efficiency with lower energy costs and improved thermal comfort for all occupants.',
+        action: showOptimizationComplete
+      }
+    ];
+
+    function updateStageDots(stage) {
+      for (let i = 1; i <= 4; i++) {
+        const dot = document.getElementById(`stage-${i}-dot`);
+        if (i <= stage + 1) {
+          dot.classList.remove('bg-slate-600');
+          dot.classList.add('bg-emerald-500');
+        } else {
+          dot.classList.remove('bg-emerald-500');
+          dot.classList.add('bg-slate-600');
+        }
+        dot.classList.toggle('active', i === stage + 1);
+      }
+    }
+
+    function animateElement(element, properties, duration = 500) {
+      element.style.transition = `all ${duration}ms ease`;
+      Object.assign(element.style, properties);
+    }
+
+    function showThermalScan() {
+      const thermalOverlay = document.getElementById('thermal-overlay');
+      const sensors = document.getElementById('sensors');
+      const flowLine = document.getElementById('flow-building-platform');
+      const packet = document.getElementById('packet-1');
+      
+      // Reset other elements
+      document.getElementById('flow-platform-algorithm').style.opacity = '0';
+      document.getElementById('flow-algorithm-hvac').style.opacity = '0';
+      document.getElementById('flow-hvac-building').style.opacity = '0';
+      
+      // Show thermal scan
+      thermalOverlay.style.transition = 'opacity 1s ease';
+      thermalOverlay.style.opacity = '0.8';
+      
+      // Show sensors with pulsing
+      sensors.style.transition = 'opacity 0.5s ease';
+      sensors.style.opacity = '1';
+      
+      // Show green data flow line from building to SaverX Platform
+      setTimeout(() => {
+        flowLine.style.opacity = '1';
+        
+        // Animate data packet from building to SaverX Platform
+        packet.style.opacity = '1';
+        animatePacket(packet, [
+          {cx: 450, cy: 220},
+          {cx: 470, cy: 240},
+          {cx: 485, cy: 280},
+          {cx: 500, cy: 310},
+          {cx: 520, cy: 320}
+        ]);
+      }, 500);
+      
+      // Animate window colors based on temperature
+      const windows = document.querySelectorAll('.window');
+      windows.forEach((win, i) => {
+        setTimeout(() => {
+          const floor = win.getAttribute('data-floor');
+          const colors = ['#ef444460', '#f9731660', '#eab30860', '#22c55e60'];
+          win.style.fill = colors[parseInt(floor) - 1];
+        }, i * 100);
+      });
+    }
+
+    function showAlgorithmProcessing() {
+      const processingDots = document.querySelectorAll('#processing-dots circle');
+      const flowLinePlatform = document.getElementById('flow-building-platform');
+      const flowLineAlgorithm = document.getElementById('flow-platform-algorithm');
+      const packet = document.getElementById('packet-1');
+      const packet2 = document.getElementById('packet-2');
+      
+      // Show data flow from building to SaverX Platform
+      flowLinePlatform.style.opacity = '1';
+      
+      // Animate processing dots in Platform
+      let dotIndex = 0;
+      const dotInterval = setInterval(() => {
+        processingDots.forEach((dot, i) => {
+          dot.style.opacity = i === dotIndex % 3 ? '1' : '0.3';
+        });
+        dotIndex++;
+      }, 300);
+      
+      setTimeout(() => clearInterval(dotInterval), 2500);
+      
+      // Show flow from Platform to Algorithm
+      setTimeout(() => {
+        flowLineAlgorithm.style.opacity = '1';
+        
+        // Animate data packet from Platform to Algorithm
+        packet2.style.opacity = '1';
+        animatePacket(packet2, [
+          {cx: 580, cy: 320},
+          {cx: 640, cy: 320},
+          {cx: 680, cy: 320},
+          {cx: 680, cy: 290},
+          {cx: 680, cy: 270}
+        ]);
+      }, 1000);
+    }
+
+    function showHMICommunication() {
+      const flowLine = document.getElementById('flow-algorithm-hvac');
+      const packet = document.getElementById('packet-2');
+      
+      // Show data flow from SaverX Algorithm to HVAC
+      flowLine.style.opacity = '1';
+      
+      // Animate packet from SaverX Algorithm to HVAC
+      packet.style.opacity = '1';
+      animatePacket(packet, [
+        {cx: 680, cy: 235},
+        {cx: 680, cy: 215},
+        {cx: 660, cy: 200},
+        {cx: 640, cy: 200}
+      ]);
+      
+      // Update current setpoint metric
+      let newSetpoint = 21.5;
+      setTimeout(() => {
+        document.getElementById('current-setpoint').textContent = `${newSetpoint}°C`;
+      }, 1000);
+    }
+
+    function showOptimizationComplete() {
+      const flowLine = document.getElementById('flow-hvac-building');
+      const packet = document.getElementById('packet-3');
+      const energySaved = document.getElementById('energy-saved');
+      const comfortScore = document.getElementById('comfort-score');
+      
+      // Show data flow from HVAC to building
+      flowLine.style.opacity = '1';
+      
+      // Animate packet from HVAC to Building
+      packet.style.opacity = '1';
+      animatePacket(packet, [
+        {cx: 520, cy: 200},
+        {cx: 485, cy: 200},
+        {cx: 450, cy: 200}
+      ]);
+      
+      // Animate metrics
+      animateValue(energySaved, 0, 23, 1500, '%');
+      animateValue(comfortScore, 65, 94, 1500, '%');
+      
+      // Flash windows to show comfort achieved
+      const windows = document.querySelectorAll('.window');
+      windows.forEach((win, i) => {
+        setTimeout(() => {
+          win.style.fill = '#22c55e40';
+        }, i * 50);
+      });
+      
+      // Hide thermal overlay
+      const thermalOverlay = document.getElementById('thermal-overlay');
+      thermalOverlay.style.opacity = '0';
+    }
+
+    function animatePacket(packet, points) {
+      let pointIndex = 0;
+      const interval = setInterval(() => {
+        if (pointIndex >= points.length) {
+          clearInterval(interval);
+          packet.style.opacity = '0';
+          return;
+        }
+        packet.setAttribute('cx', points[pointIndex].cx);
+        packet.setAttribute('cy', points[pointIndex].cy);
+        pointIndex++;
+      }, 200);
+    }
+
+    function animateValue(element, start, end, duration, suffix = '') {
+      const startTime = performance.now();
+      const update = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const value = Math.round(start + (end - start) * easeOutCubic(progress));
+        element.textContent = `${value}${suffix}`;
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        }
+      };
+      requestAnimationFrame(update);
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function resetAnimation() {
+      // Reset all visual elements
+      document.getElementById('thermal-overlay').style.opacity = '0';
+      document.getElementById('sensors').style.opacity = '0';
+      document.getElementById('flow-building-platform').style.opacity = '0';
+      document.getElementById('flow-platform-algorithm').style.opacity = '0';
+      document.getElementById('flow-algorithm-hvac').style.opacity = '0';
+      document.getElementById('flow-hvac-building').style.opacity = '0';
+      document.getElementById('packet-1').style.opacity = '0';
+      document.getElementById('packet-2').style.opacity = '0';
+      document.getElementById('packet-3').style.opacity = '0';
+      document.getElementById('current-setpoint').textContent = '22.0°C';
+      document.getElementById('energy-saved').textContent = '0%';
+      document.getElementById('comfort-score').textContent = '65%';
+      
+      // Reset windows
+      const windows = document.querySelectorAll('.window');
+      windows.forEach(win => {
+        win.style.fill = 'url(#glassGrad)';
+      });
+    }
+
+    function runStage(stageIndex) {
+      const stage = stages[stageIndex];
+      
+      // Update UI
+      document.getElementById('stage-label').textContent = stage.label;
+      document.getElementById('stage-description').innerHTML = stage.description;
+      updateStageDots(stageIndex);
+      
+      // Run stage action
+      stage.action();
+    }
+
+    function startAutoplay() {
+      currentStage = 0;
+      resetAnimation();
+      runStage(currentStage);
+      
+      animationInterval = setInterval(() => {
+        currentStage = (currentStage + 1) % stages.length;
+        if (currentStage === 0) {
+          resetAnimation();
+        }
+        runStage(currentStage);
+      }, 4000);
+    }
+
+    async function onConfigChange(config) {
+      // Config updates handled through recolorables
+    }
+
+    function mapToCapabilities(config) {
+      return {
+        recolorables: [
+          {
+            get: () => config.background_color || defaultConfig.background_color,
+            set: (value) => {
+              config.background_color = value;
+              window.elementSdk.setConfig({ background_color: value });
+            }
+          },
+          {
+            get: () => config.surface_color || defaultConfig.surface_color,
+            set: (value) => {
+              config.surface_color = value;
+              window.elementSdk.setConfig({ surface_color: value });
+            }
+          },
+          {
+            get: () => config.text_color || defaultConfig.text_color,
+            set: (value) => {
+              config.text_color = value;
+              window.elementSdk.setConfig({ text_color: value });
+            }
+          },
+          {
+            get: () => config.primary_action || defaultConfig.primary_action,
+            set: (value) => {
+              config.primary_action = value;
+              window.elementSdk.setConfig({ primary_action: value });
+            }
+          },
+          {
+            get: () => config.secondary_action || defaultConfig.secondary_action,
+            set: (value) => {
+              config.secondary_action = value;
+              window.elementSdk.setConfig({ secondary_action: value });
+            }
+          }
+        ],
+        borderables: [],
+        fontEditable: undefined,
+        fontSizeable: undefined
+      };
+    }
+
+    function mapToEditPanelValues(config) {
+      return new Map();
+    }
+
+    // Initialize
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities,
+        mapToEditPanelValues
+      });
+    }
+
+    // Start autoplay animation
+    startAutoplay();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9c45073db5523d42',t:'MTc2OTQ4MzEyNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
