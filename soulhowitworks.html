@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Center Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+ 
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+    
+    * {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    @media (max-width: 768px) {
+      .mobile-hide {
+        display: none !important;
+      }
+      
+      /* Touch-friendly tap targets */
+      button {
+        min-height: 44px;
+        min-width: 44px;
+      }
+    }
+    
+    /* Prevent text selection on mobile for better UX */
+    @media (max-width: 768px) {
+      * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { filter: drop-shadow(0 0 4px currentColor); }
+      50% { filter: drop-shadow(0 0 12px currentColor); }
+    }
+    
+    @keyframes electricity-flow {
+      0% { stroke-dashoffset: 20; }
+      100% { stroke-dashoffset: 0; }
+    }
+    
+    @keyframes alert-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+    
+    @keyframes scan-line {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(400%); }
+    }
+    
+    @keyframes fade-in-up {
+      0% { opacity: 0; transform: translateY(20px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes typing {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+    
+    .node-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    
+    .electricity-line {
+      stroke-dasharray: 5, 5;
+      animation: electricity-flow 0.5s linear infinite;
+    }
+    
+    .alert-node {
+      animation: alert-pulse 0.8s ease-in-out infinite;
+    }
+    
+    .scan-effect {
+      animation: scan-line 3s linear infinite;
+    }
+    
+    .recommendation-panel {
+      animation: fade-in-up 0.5s ease-out forwards;
+    }
+    
+    .typing-effect {
+      overflow: hidden;
+      white-space: nowrap;
+      animation: typing 1s steps(40) forwards;
+    }
+    
+    .server-rack {
+      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    }
+    
+    .glow-green { color: #00ff88; }
+    .glow-red { color: #ff4444; }
+    .glow-blue { color: #00d4ff; }
+    .glow-yellow { color: #ffdd00; }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full bg-slate-950 overflow-hidden">
+  <div id="app-container" class="h-full w-full relative overflow-hidden"><!-- Scan line overlay -->
+   <div class="absolute inset-0 pointer-events-none overflow-hidden z-20">
+    <div class="scan-effect w-full h-1 bg-gradient-to-b from-transparent via-cyan-500/30 to-transparent"></div>
+   </div><!-- Header -->
+   <div class="absolute top-0 left-0 right-0 z-30 p-2 sm:p-3 md:p-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+     <div>
+      <h1 id="main-title" class="text-base sm:text-xl md:text-2xl font-bold text-cyan-400">DATA CENTER MONITOR</h1>
+      <p class="text-slate-500 text-[10px] sm:text-xs md:text-sm">Real-time Infrastructure Analysis</p>
+     </div>
+     <div id="status-indicator" class="flex items-center gap-1.5 sm:gap-2 md:gap-3 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-lg bg-slate-900/80 border border-slate-700">
+      <div id="status-dot" class="w-2 h-2 md:w-3 md:h-3 rounded-full bg-emerald-500"></div><span id="status-text" class="text-emerald-400 text-[10px] sm:text-xs md:text-sm font-semibold">ALL SYSTEMS OPERATIONAL</span>
+     </div>
+    </div>
+   </div><!-- Main visualization area -->
+   <svg id="main-svg" class="w-full h-full" viewbox="0 0 1200 700" preserveaspectratio="xMidYMid meet" style="max-height: 100%;"><defs>
+     <lineargradient id="electricityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:0" />
+      <stop offset="50%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00d4ff;stop-opacity:0" />
+     </lineargradient>
+     <filter id="glow">
+      <fegaussianblur stddeviation="3" result="coloredBlur" />
+      <femerge>
+       <femergenode in="coloredBlur" />
+       <femergenode in="SourceGraphic" />
+      </femerge>
+     </filter>
+     <filter id="glow-strong">
+      <fegaussianblur stddeviation="6" result="coloredBlur" />
+      <femerge>
+       <femergenode in="coloredBlur" />
+       <femergenode in="SourceGraphic" />
+      </femerge>
+     </filter>
+    </defs> <!-- Background floor pattern --> <pattern id="floor-tiles" width="50" height="50" patternunits="userSpaceOnUse">
+     <rect width="50" height="50" fill="#0a0e1a" />
+     <rect x="0" y="0" width="49" height="49" fill="none" stroke="#1a2332" stroke-width="1" />
+    </pattern> <rect width="100%" height="100%" fill="url(#floor-tiles)" /> <!-- Building walls --> <g id="building-walls">
+     <rect x="50" y="100" width="1100" height="550" fill="none" stroke="#3b4a5f" stroke-width="4" />
+     <text x="600" y="85" text-anchor="middle" fill="#4a5568" font-size="14" font-weight="bold">
+      DATA CENTER FLOOR PLAN - LEVEL 1
+     </text>
+    </g> <!-- Room dividers and labels --> <g id="room-dividers"><!-- Vertical divider between server room and mechanical room -->
+     <line x1="450" y1="100" x2="450" y2="400" stroke="#3b4a5f" stroke-width="3" /> <!-- Horizontal divider for generator room -->
+     <line x1="450" y1="400" x2="1150" y2="400" stroke="#3b4a5f" stroke-width="3" /> <!-- Doors -->
+     <rect x="430" y="230" width="40" height="8" fill="#2d3748" stroke="#4a5568" stroke-width="1" rx="2" />
+     <rect x="740" y="396" width="8" height="40" fill="#2d3748" stroke="#4a5568" stroke-width="1" rx="2" /> <!-- Room labels -->
+     <text x="250" y="130" text-anchor="middle" fill="#64748b" font-size="13" font-weight="bold">
+      SERVER ROOM
+     </text>
+     <text x="800" y="130" text-anchor="middle" fill="#64748b" font-size="13" font-weight="bold">
+      MECHANICAL / HVAC
+     </text>
+     <text x="800" y="430" text-anchor="middle" fill="#64748b" font-size="13" font-weight="bold">
+      GENERATOR ROOM
+     </text>
+     <text x="250" y="430" text-anchor="middle" fill="#64748b" font-size="13" font-weight="bold">
+      ELECTRICAL ROOM
+     </text>
+    </g> <!-- Cold/Hot aisles in server room --> <g id="aisles"><!-- Cold aisle -->
+     <rect x="80" y="200" width="340" height="60" fill="#0d1829" stroke="#22d3ee" stroke-width="1" stroke-dasharray="5,5" opacity="0.3" />
+     <text x="250" y="235" text-anchor="middle" fill="#22d3ee" font-size="10" opacity="0.5">
+      ← COLD AISLE →
+     </text> <!-- Hot aisle -->
+     <rect x="80" y="300" width="340" height="60" fill="#1a0d0d" stroke="#f59e0b" stroke-width="1" stroke-dasharray="5,5" opacity="0.3" />
+     <text x="250" y="335" text-anchor="middle" fill="#f59e0b" font-size="10" opacity="0.5">
+      ← HOT AISLE →
+     </text>
+    </g> <!-- Server Racks (arranged in rows facing cold aisle) --> <g id="server-section"><!-- Row 1 - Front facing cold aisle -->
+     <g id="server-rack-1">
+      <rect x="100" y="160" width="50" height="40" fill="#1a1a2e" stroke="#3b82f6" stroke-width="2" rx="2" />
+      <text x="125" y="185" text-anchor="middle" fill="#64748b" font-size="10">
+       R01
+      </text>
+     </g>
+     <g id="server-rack-3">
+      <rect x="220" y="160" width="50" height="40" fill="#1a1a2e" stroke="#3b82f6" stroke-width="2" rx="2" />
+      <text x="245" y="185" text-anchor="middle" fill="#64748b" font-size="10">
+       R03
+      </text>
+     </g>
+     <g id="server-rack-5">
+      <rect x="340" y="160" width="50" height="40" fill="#1a1a2e" stroke="#3b82f6" stroke-width="2" rx="2" />
+      <text x="365" y="185" text-anchor="middle" fill="#64748b" font-size="10">
+       R05
+      </text>
+     </g> <!-- Row 2 - Back facing hot aisle -->
+     <g id="server-rack-7">
+      <rect x="160" y="265" width="50" height="40" fill="#1a1a2e" stroke="#3b82f6" stroke-width="2" rx="2" />
+      <text x="185" y="290" text-anchor="middle" fill="#64748b" font-size="10">
+       R07
+      </text>
+     </g>
+     <g id="server-rack-8">
+      <rect x="280" y="265" width="50" height="40" fill="#1a1a2e" stroke="#3b82f6" stroke-width="2" rx="2" />
+      <text x="305" y="290" text-anchor="middle" fill="#64748b" font-size="10">
+       R08
+      </text>
+     </g>
+    </g> <!-- HVAC/Mechanical Room --> <g id="hvac-section"><!-- CRAC Unit -->
+     <g id="hvac-unit-1">
+      <rect x="540" y="150" width="140" height="90" fill="#1a1a2e" stroke="#10b981" stroke-width="2" rx="4" />
+      <circle cx="610" cy="195" r="30" fill="none" stroke="#10b981" stroke-width="2" />
+      <text x="610" y="205" text-anchor="middle" fill="#10b981" font-size="16">
+       ❄
+      </text>
+      <text x="610" y="255" text-anchor="middle" fill="#10b981" font-size="11">
+       HVAC UNIT
+      </text>
+     </g> <!-- Chiller System -->
+     <g id="water-pipes">
+      <rect x="800" y="160" width="140" height="80" fill="#0f1629" stroke="#06b6d4" stroke-width="2" rx="4" />
+      <text x="870" y="200" text-anchor="middle" fill="#06b6d4" font-size="12">
+       CHILLER
+      </text>
+      <text x="870" y="220" text-anchor="middle" fill="#06b6d4" font-size="12">
+       SYSTEM
+      </text>
+     </g>
+    </g> <!-- Generator Room --> <g id="generator-section">
+     <g id="generator-1">
+      <rect x="540" y="470" width="160" height="110" fill="#1a1a2e" stroke="#f59e0b" stroke-width="2" rx="4" />
+      <circle cx="620" cy="520" r="40" fill="#0f172a" stroke="#f59e0b" stroke-width="2" />
+      <text x="620" y="535" text-anchor="middle" fill="#f59e0b" font-size="28">
+       ⚡
+      </text>
+      <text x="620" y="595" text-anchor="middle" fill="#f59e0b" font-size="12">
+       GENERATOR
+      </text>
+     </g> <!-- Fuel tank -->
+     <g id="fuel-tank">
+      <ellipse cx="860" cy="520" rx="90" ry="50" fill="#1a1a2e" stroke="#f59e0b" stroke-width="2" />
+      <text x="860" y="525" text-anchor="middle" fill="#f59e0b" font-size="12">
+       FUEL TANK
+      </text>
+     </g>
+    </g> <!-- Electrical Room --> <g id="industrial-section"><!-- Main switchboard -->
+     <g id="switchboard">
+      <rect x="90" y="460" width="110" height="110" fill="#1a1a2e" stroke="#8b5cf6" stroke-width="2" rx="4" />
+      <text x="145" y="520" text-anchor="middle" fill="#8b5cf6" font-size="11">
+       MAIN
+      </text>
+      <text x="145" y="540" text-anchor="middle" fill="#8b5cf6" font-size="11">
+       SWITCHBOARD
+      </text>
+     </g> <!-- UPS System -->
+     <g id="ups-unit">
+      <rect x="240" y="460" width="100" height="110" fill="#1a1a2e" stroke="#8b5cf6" stroke-width="2" rx="4" />
+      <text x="290" y="520" text-anchor="middle" fill="#8b5cf6" font-size="11">
+       UPS
+      </text>
+      <text x="290" y="540" text-anchor="middle" fill="#8b5cf6" font-size="11">
+       SYSTEM
+      </text>
+     </g>
+    </g> <!-- Monitoring Nodes (Pointers) --> <g id="monitoring-nodes"><!-- Node 1 - Server Rack 1 -->
+     <g id="node-1" class="node-glow" filter="url(#glow)">
+      <circle cx="125" cy="180" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="125" cy="180" r="4" fill="#ffffff" />
+     </g> <!-- Node 2 - Server Rack 3 -->
+     <g id="node-2" class="node-glow" filter="url(#glow)">
+      <circle cx="245" cy="180" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="245" cy="180" r="4" fill="#ffffff" />
+     </g> <!-- Node 3 - Server Rack 8 (will turn red) -->
+     <g id="node-3" class="node-glow" filter="url(#glow)">
+      <circle cx="305" cy="285" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="305" cy="285" r="4" fill="#ffffff" />
+     </g> <!-- Node 4 - HVAC Unit -->
+     <g id="node-4" class="node-glow" filter="url(#glow)">
+      <circle cx="610" cy="195" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="610" cy="195" r="4" fill="#ffffff" />
+     </g> <!-- Node 5 - Chiller -->
+     <g id="node-5" class="node-glow" filter="url(#glow)">
+      <circle cx="870" cy="200" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="870" cy="200" r="4" fill="#ffffff" />
+     </g> <!-- Node 6 - Generator -->
+     <g id="node-6" class="node-glow" filter="url(#glow)">
+      <circle cx="620" cy="520" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="620" cy="520" r="4" fill="#ffffff" />
+     </g> <!-- Node 7 - UPS -->
+     <g id="node-7" class="node-glow" filter="url(#glow)">
+      <circle cx="290" cy="490" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="290" cy="490" r="4" fill="#ffffff" />
+     </g> <!-- Node 8 - Switchboard -->
+     <g id="node-8" class="node-glow" filter="url(#glow)">
+      <circle cx="145" cy="490" r="8" fill="#00ff88" stroke="#00ff88" stroke-width="2" />
+      <circle cx="145" cy="490" r="4" fill="#ffffff" />
+     </g>
+    </g> <!-- Electricity Flow Lines --> <g id="electricity-flows"><!-- From generator to electrical room -->
+     <path d="M 620 470 L 620 430 L 145 430 L 145 460" fill="none" stroke="#f59e0b" stroke-width="3" class="electricity-line" filter="url(#glow)" /> <!-- From switchboard to UPS -->
+     <path d="M 200 515 L 240 515" fill="none" stroke="#8b5cf6" stroke-width="2" class="electricity-line" /> <!-- From UPS to server room -->
+     <path d="M 290 460 L 290 380 L 220 380 L 220 285" fill="none" stroke="#00d4ff" stroke-width="3" class="electricity-line" filter="url(#glow)" /> <!-- To other server racks -->
+     <path d="M 220 285 L 185 285" fill="none" stroke="#00d4ff" stroke-width="2" class="electricity-line" />
+     <path d="M 220 285 L 220 220 L 150 220 L 150 200" fill="none" stroke="#00d4ff" stroke-width="2" class="electricity-line" /> <!-- To HVAC room -->
+     <path d="M 290 380 L 450 380 L 450 250 L 610 250 L 610 240" fill="none" stroke="#00d4ff" stroke-width="2" class="electricity-line" filter="url(#glow)" /> <!-- To chiller -->
+     <path d="M 610 250 L 870 250 L 870 240" fill="none" stroke="#00d4ff" stroke-width="2" class="electricity-line" />
+    </g> <!-- Central Control Hub --> <g id="control-hub">
+     <rect x="520" y="420" width="440" height="160" fill="#0a0f1a" stroke="#3b82f6" stroke-width="2" rx="8" />
+     <text x="740" y="445" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="bold">
+      MONITORING &amp; CONTROL HUB
+     </text> <!-- Metrics display -->
+     <g id="metrics">
+      <rect x="540" y="460" width="120" height="50" fill="#0f172a" stroke="#22d3ee" stroke-width="1" rx="4" />
+      <text x="600" y="480" text-anchor="middle" fill="#64748b" font-size="10">
+       POWER USAGE
+      </text>
+      <text id="power-metric" x="600" y="500" text-anchor="middle" fill="#22d3ee" font-size="16" font-weight="bold">
+       847 kW
+      </text>
+      <rect x="680" y="460" width="120" height="50" fill="#0f172a" stroke="#10b981" stroke-width="1" rx="4" />
+      <text x="740" y="480" text-anchor="middle" fill="#64748b" font-size="10">
+       TEMPERATURE
+      </text>
+      <text id="temp-metric" x="740" y="500" text-anchor="middle" fill="#10b981" font-size="16" font-weight="bold">
+       21.5°C
+      </text>
+      <rect x="820" y="460" width="120" height="50" fill="#0f172a" stroke="#f59e0b" stroke-width="1" rx="4" />
+      <text x="880" y="480" text-anchor="middle" fill="#64748b" font-size="10">
+       UPTIME
+      </text>
+      <text id="uptime-metric" x="880" y="500" text-anchor="middle" fill="#f59e0b" font-size="16" font-weight="bold">
+       99.97%
+      </text>
+     </g> <!-- Activity log -->
+     <g id="activity-log">
+      <rect x="540" y="520" width="400" height="50" fill="#0f172a" stroke="#475569" stroke-width="1" rx="4" />
+      <text x="555" y="540" fill="#64748b" font-size="10">
+       SYSTEM LOG:
+      </text>
+      <text id="log-text" x="555" y="558" fill="#22d3ee" font-size="11">
+       ● Monitoring all nodes... System nominal
+      </text>
+     </g>
+    </g>
+   </svg><!-- Recommendation Panel (appears on fault detection) -->
+   <div id="recommendation-panel" class="hidden absolute left-2 right-2 sm:left-auto sm:right-4 md:right-6 top-14 sm:top-16 md:top-20 w-auto sm:w-80 md:w-96 bg-slate-900/95 border-2 border-red-500 rounded-xl p-3 sm:p-4 z-40 recommendation-panel">
+    <div class="flex items-center justify-between mb-2 sm:mb-3">
+     <div class="flex items-center gap-1.5 sm:gap-2">
+      <div class="w-2 h-2 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse"></div>
+      <h3 class="text-red-400 font-bold text-xs sm:text-sm">⚠️ FAULT DETECTED</h3>
+     </div>
+     <div class="text-slate-500 text-[9px] sm:text-[10px] md:text-xs font-semibold">
+      Soul by Zodhya
+     </div>
+    </div>
+    <div class="space-y-2 sm:space-y-2.5 md:space-y-3">
+     <div class="bg-slate-800 rounded-lg p-2 sm:p-2.5 md:p-3">
+      <p class="text-slate-400 text-[9px] sm:text-[10px] md:text-xs mb-0.5 sm:mb-1">LOCATION</p>
+      <p class="text-white text-xs sm:text-sm font-semibold">Server Rack 8 - Node S08</p>
+     </div>
+     <div class="bg-slate-800 rounded-lg p-2 sm:p-2.5 md:p-3">
+      <p class="text-slate-400 text-[9px] sm:text-[10px] md:text-xs mb-0.5 sm:mb-1">ISSUE</p>
+      <p class="text-red-400 text-xs sm:text-sm font-semibold">Power Supply Irregularity</p>
+     </div>
+     <div class="bg-slate-800 rounded-lg p-2 sm:p-2.5 md:p-3">
+      <p class="text-slate-400 text-[9px] sm:text-[10px] md:text-xs mb-0.5 sm:mb-1">RECOMMENDATION</p>
+      <p class="text-emerald-400 text-xs sm:text-sm">Check PSU connections and verify voltage levels. Reroute power through backup circuit.</p>
+     </div>
+     <div class="flex gap-2 mt-2 sm:mt-3 md:mt-4"><button id="fix-btn" class="flex-1 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-[10px] sm:text-xs font-bold py-2 sm:py-2.5 px-2 sm:px-3 rounded-lg transition-colors"> APPLY FIX </button> <button class="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-white text-[10px] sm:text-xs font-bold py-2 sm:py-2.5 px-2 sm:px-3 rounded-lg transition-colors"> DETAILS </button>
+     </div>
+    </div>
+   </div><!-- Fixed notification -->
+   <div id="fixed-notification" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-emerald-900/95 border-2 border-emerald-500 rounded-xl p-6 z-50 text-center">
+    <div class="text-4xl mb-3">
+     ���
+    </div>
+    <h3 class="text-emerald-400 font-bold text-lg mb-2">ISSUE RESOLVED</h3>
+    <p class="text-slate-300 text-sm">Power supply rerouted successfully.<br>
+     All systems operational.</p>
+   </div><!-- Phase indicator -->
+   <div class="absolute bottom-2 sm:bottom-3 md:bottom-4 left-2 sm:left-3 md:left-4 bg-slate-900/80 border border-slate-700 rounded-lg px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 z-30">
+    <p class="text-slate-500 text-[9px] sm:text-[10px] md:text-xs mb-0.5 sm:mb-1">MONITORING PHASE</p>
+    <p id="phase-text" class="text-cyan-400 text-[10px] sm:text-xs md:text-sm font-semibold">SCANNING INFRASTRUCTURE</p>
+   </div><!-- Auto-cycle indicator -->
+   <div class="absolute bottom-2 sm:bottom-3 md:bottom-4 right-2 sm:right-3 md:right-4 bg-slate-900/80 border border-slate-700 rounded-lg px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 z-30 flex items-center gap-1 sm:gap-1.5 md:gap-2">
+    <div class="w-1.5 h-1.5 md:w-2 md:h-2 bg-cyan-500 rounded-full animate-pulse"></div>
+    <p class="text-cyan-400 text-[9px] sm:text-[10px] md:text-xs whitespace-nowrap">AUTO-MONITORING</p>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      main_title: 'DATA CENTER MONITOR',
+      status_normal: 'ALL SYSTEMS OPERATIONAL',
+      status_alert: 'FAULT DETECTED - ACTION REQUIRED',
+      status_fixed: 'ISSUE RESOLVED - SYSTEMS NOMINAL',
+      primary_color: '#0f172a',
+      accent_color: '#22d3ee',
+      text_color: '#e2e8f0',
+      alert_color: '#ef4444',
+      success_color: '#10b981'
+    };
+
+    let currentPhase = 0;
+    let animationInterval;
+    
+    const phases = [
+      { name: 'SCANNING INFRASTRUCTURE', duration: 4000 },
+      { name: 'ANALYZING NODE DATA', duration: 3000 },
+      { name: 'FAULT DETECTION ACTIVE', duration: 3000 },
+      { name: 'PROCESSING ALERT', duration: 4000 },
+      { name: 'APPLYING CORRECTIVE ACTION', duration: 3000 },
+      { name: 'VERIFYING SYSTEM STATUS', duration: 2000 }
+    ];
+
+    function updateNode3ToRed() {
+      const node3 = document.getElementById('node-3');
+      const outerCircle = node3.querySelector('circle:first-child');
+      outerCircle.setAttribute('fill', '#ff4444');
+      outerCircle.setAttribute('stroke', '#ff4444');
+      node3.classList.remove('node-glow');
+      node3.classList.add('alert-node');
+      node3.setAttribute('filter', 'url(#glow-strong)');
+    }
+
+    function updateNode3ToGreen() {
+      const node3 = document.getElementById('node-3');
+      const outerCircle = node3.querySelector('circle:first-child');
+      outerCircle.setAttribute('fill', '#00ff88');
+      outerCircle.setAttribute('stroke', '#00ff88');
+      node3.classList.remove('alert-node');
+      node3.classList.add('node-glow');
+      node3.setAttribute('filter', 'url(#glow)');
+    }
+
+    function updateStatusIndicator(status) {
+      const statusDot = document.getElementById('status-dot');
+      const statusText = document.getElementById('status-text');
+      const config = window.elementSdk ? window.elementSdk.config : defaultConfig;
+      
+      if (status === 'alert') {
+        statusDot.className = 'w-3 h-3 rounded-full bg-red-500 animate-pulse';
+        statusText.className = 'text-red-400 text-sm font-semibold';
+        statusText.textContent = config.status_alert || defaultConfig.status_alert;
+      } else if (status === 'fixed') {
+        statusDot.className = 'w-3 h-3 rounded-full bg-emerald-500';
+        statusText.className = 'text-emerald-400 text-sm font-semibold';
+        statusText.textContent = config.status_fixed || defaultConfig.status_fixed;
+      } else {
+        statusDot.className = 'w-3 h-3 rounded-full bg-emerald-500';
+        statusText.className = 'text-emerald-400 text-sm font-semibold';
+        statusText.textContent = config.status_normal || defaultConfig.status_normal;
+      }
+    }
+
+    function updateLogText(text) {
+      document.getElementById('log-text').textContent = '● ' + text;
+    }
+
+    function showRecommendationPanel() {
+      document.getElementById('recommendation-panel').classList.remove('hidden');
+    }
+
+    function hideRecommendationPanel() {
+      document.getElementById('recommendation-panel').classList.add('hidden');
+    }
+
+    function showFixedNotification() {
+      const notification = document.getElementById('fixed-notification');
+      notification.classList.remove('hidden');
+      setTimeout(() => {
+        notification.classList.add('hidden');
+      }, 2500);
+    }
+
+    function runAnimationCycle() {
+      const phaseText = document.getElementById('phase-text');
+      
+      // Phase 0-1: Normal scanning
+      if (currentPhase === 0) {
+        updateStatusIndicator('normal');
+        hideRecommendationPanel();
+        updateLogText('Monitoring all nodes... System nominal');
+        phaseText.textContent = phases[0].name;
+        
+        setTimeout(() => {
+          currentPhase = 1;
+          runAnimationCycle();
+        }, phases[0].duration);
+      }
+      else if (currentPhase === 1) {
+        updateLogText('Collecting telemetry from 8 active nodes...');
+        phaseText.textContent = phases[1].name;
+        
+        setTimeout(() => {
+          currentPhase = 2;
+          runAnimationCycle();
+        }, phases[1].duration);
+      }
+      // Phase 2: Detect fault
+      else if (currentPhase === 2) {
+        updateNode3ToRed();
+        updateStatusIndicator('alert');
+        updateLogText('ALERT: Anomaly detected at Server Rack 8');
+        phaseText.textContent = phases[2].name;
+        
+        setTimeout(() => {
+          currentPhase = 3;
+          runAnimationCycle();
+        }, phases[2].duration);
+      }
+      // Phase 3: Show recommendation
+      else if (currentPhase === 3) {
+        showRecommendationPanel();
+        updateLogText('Analyzing fault... Generating recommendation');
+        phaseText.textContent = phases[3].name;
+        
+        setTimeout(() => {
+          currentPhase = 4;
+          runAnimationCycle();
+        }, phases[3].duration);
+      }
+      // Phase 4: Apply fix
+      else if (currentPhase === 4) {
+        updateLogText('Rerouting power through backup circuit...');
+        phaseText.textContent = phases[4].name;
+        
+        setTimeout(() => {
+          currentPhase = 5;
+          runAnimationCycle();
+        }, phases[4].duration);
+      }
+      // Phase 5: Verify and complete
+      else if (currentPhase === 5) {
+        updateNode3ToGreen();
+        hideRecommendationPanel();
+        showFixedNotification();
+        updateStatusIndicator('fixed');
+        updateLogText('Issue resolved. All systems back to nominal.');
+        phaseText.textContent = phases[5].name;
+        
+        setTimeout(() => {
+          currentPhase = 0;
+          runAnimationCycle();
+        }, phases[5].duration + 2500);
+      }
+    }
+
+    // Manual fix button
+    document.getElementById('fix-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      if (currentPhase === 3 || currentPhase === 4) {
+        currentPhase = 5;
+        runAnimationCycle();
+      }
+    });
+
+    // Fluctuate metrics for realism
+    function fluctuateMetrics() {
+      const power = document.getElementById('power-metric');
+      const temp = document.getElementById('temp-metric');
+      
+      const powerVal = 840 + Math.random() * 20;
+      const tempVal = 21 + Math.random() * 1.5;
+      
+      power.textContent = powerVal.toFixed(0) + ' kW';
+      temp.textContent = tempVal.toFixed(1) + '°C';
+    }
+
+    async function onConfigChange(config) {
+      const mainTitle = document.getElementById('main-title');
+      mainTitle.textContent = config.main_title || defaultConfig.main_title;
+      
+      // Update status text based on current state
+      const statusText = document.getElementById('status-text');
+      const statusDot = document.getElementById('status-dot');
+      
+      if (statusDot.classList.contains('bg-red-500')) {
+        statusText.textContent = config.status_alert || defaultConfig.status_alert;
+      } else if (currentPhase === 5) {
+        statusText.textContent = config.status_fixed || defaultConfig.status_fixed;
+      } else {
+        statusText.textContent = config.status_normal || defaultConfig.status_normal;
+      }
+    }
+
+    function mapToCapabilities(config) {
+      return {
+        recolorables: [
+          {
+            get: () => config.primary_color || defaultConfig.primary_color,
+            set: (value) => {
+              config.primary_color = value;
+              window.elementSdk.setConfig({ primary_color: value });
+            }
+          },
+          {
+            get: () => config.accent_color || defaultConfig.accent_color,
+            set: (value) => {
+              config.accent_color = value;
+              window.elementSdk.setConfig({ accent_color: value });
+            }
+          },
+          {
+            get: () => config.text_color || defaultConfig.text_color,
+            set: (value) => {
+              config.text_color = value;
+              window.elementSdk.setConfig({ text_color: value });
+            }
+          },
+          {
+            get: () => config.alert_color || defaultConfig.alert_color,
+            set: (value) => {
+              config.alert_color = value;
+              window.elementSdk.setConfig({ alert_color: value });
+            }
+          },
+          {
+            get: () => config.success_color || defaultConfig.success_color,
+            set: (value) => {
+              config.success_color = value;
+              window.elementSdk.setConfig({ success_color: value });
+            }
+          }
+        ],
+        borderables: [],
+        fontEditable: undefined,
+        fontSizeable: undefined
+      };
+    }
+
+    function mapToEditPanelValues(config) {
+      return new Map([
+        ['main_title', config.main_title || defaultConfig.main_title],
+        ['status_normal', config.status_normal || defaultConfig.status_normal],
+        ['status_alert', config.status_alert || defaultConfig.status_alert],
+        ['status_fixed', config.status_fixed || defaultConfig.status_fixed]
+      ]);
+    }
+
+    // Initialize SDK
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities,
+        mapToEditPanelValues
+      });
+    }
+
+    // Start animation cycle
+    runAnimationCycle();
+    
+    // Fluctuate metrics every 2 seconds
+    setInterval(fluctuateMetrics, 2000);
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9c6e5d0297317a0a',t:'MTc2OTkxNjU1NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
